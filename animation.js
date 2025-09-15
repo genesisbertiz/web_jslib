@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+  document.body.style.opacity = 1
   document.querySelectorAll('[data-animation="type-loop"]').forEach((el) => {
     const strings = el.dataset.typingStrings?.split('|') || ['Hello!'];
     const delay = parseInt(el.dataset.delay || '500', 10);
@@ -81,8 +82,8 @@ document.addEventListener('DOMContentLoaded', () => {
             el.classList.add('animated')
             setTimeout(() => {
               lastTimestamp = 0;
-              timeout = 0;
               requestAnimationFrame(typeLoopRAF);
+              timeout = 0;
             }, delay);
           }
         });
@@ -98,77 +99,71 @@ document.addEventListener('DOMContentLoaded', () => {
   function animateElement(el) {
     const type = el.dataset.animation;
     const opacity = parseFloat(el.dataset.opacity || 1);
-    const delay = parseInt(el.dataset.delay || '0', 10);
-    const duration = parseInt(el.dataset.duration || '500', 10);
-    const easing = el.dataset.easing || 'easeOutCubic';
-    const trigger = el.dataset.trigger || 'view';
+    const delay = parseFloat(el.dataset.delay || '0', 10) / 1000;
+    const duration = parseFloat(el.dataset.duration || '500', 10) / 1000;
+    const easing = el.dataset.easing || 'power2.out';
 
-    let targets;
+    let targets = [el];
 
+    let baseConfig = { duration, ease: easing, delay, stagger: 0.05 };
     if (el.hasAttribute('data-splitting')) {
-      const splitType = el.getAttribute('data-splitting');
-      targets = el.querySelectorAll(splitType === 'words' ? '.word' : '.char');
-      el.style.opacity = '1';
-    } else if (type === 'type') {
-      const text = el.textContent.trim();
-      el.textContent = '';
-      for (let char of text) {
-        const span = document.createElement('span');
-        span.textContent = char;
-        span.className = 'char';
-        span.style.opacity = '0';
-        el.appendChild(span);
+      const splitType = el.getAttribute('data-splitting') || "words";
+      const split = new SplitText(el, { type: splitType });
+      
+      // Targets based on the type
+      if (splitType === 'chars') targets = split.chars;
+      else if (splitType === 'words') targets = split.words;
+      else if (splitType === 'lines') targets = split.lines;
+      el.style.opacity = '1'; // make container visible
+      baseConfig = {
+        ...baseConfig,
+        transformOrigin: 'top',
+        stagger: 0.1,
       }
-      targets = el.querySelectorAll('.char');
-    } else {
-      targets = [el];
+      switch (type) {
+        default:
+          gsap.from(targets, { ...baseConfig, y: 30, opacity: 0, ease: 'power2.out' });
+          break;
+      }
+      return;
     }
 
-    const props = {
-      delay: stagger(50, { start: delay }),
-      duration,
-      easing,
-      sync: .25,
-      opacity: [0, opacity]
-    };
 
-    if (type === 'type') {
-      animate(targets, {
-        opacity: [0, opacity],
-        duration: 30,
-        delay: stagger(50, { start: delay }),
-        easing: 'linear',
-      });
-    } else {
-      switch (type) {
-        case 'fade-up':     props.translateY = [50, 0]; break;
-        case 'fade-down':   props.translateY = [-50, 0]; break;
-        case 'fade-left':   props.translateX = [-50, 0]; break;
-        case 'fade-right':  props.translateX = [50, 0]; break;
-        case 'zoom-in':     props.scale = [0.8, 1]; break;
-        case 'zoom-out':    props.scale = [1.2, 1]; break;
-        case 'rotate':      props.rotate = [0, 90]; break;
-        case 'flip-x':      props.rotateY = [-90, 0]; break;
-        case 'flip-y':      props.rotateX = [-90, 0]; break;
-        case 'scale-up':    props.scale = [0, 1]; break;
-        case 'skew-up':
-          props.translateY = [20, 0];
-          props.skewY = [10, 0];
-          break;
-        case 'blur-in':
-          props.filter = ['blur(5px)', 'blur(0px)'];
-          break;
-        case 'slide-up-peek':
-          props.translateY = [100, 0];
-          props.opacity = [0, opacity];
-          break;
-      }
-      // console.log(props)
-      animate(targets, props);
+    switch (type) {
+      case 'fade-up':
+        gsap.fromTo(targets, { y: 50, opacity: 0 }, { y: 0, opacity, ...baseConfig });
+        break;
+      case 'fade-down':
+        gsap.fromTo(targets, { y: -50, opacity: 0 }, { y: 0, opacity, ...baseConfig });
+        break;
+      case 'fade-left':
+        gsap.fromTo(targets, { x: -50, opacity: 0 }, { x: 0, opacity, ...baseConfig });
+        break;
+      case 'fade-right':
+        gsap.fromTo(targets, { x: 50, opacity: 0 }, { x: 0, opacity, ...baseConfig });
+        break;
+      case 'zoom-in':
+        gsap.fromTo(targets, { scale: 0.8, opacity: 0 }, { scale: 1, opacity, ...baseConfig });
+        break;
+      case 'zoom-out':
+        gsap.fromTo(targets, { scale: 1.2, opacity: 0 }, { scale: 1, opacity, ...baseConfig });
+        break;
+      case 'rotate':
+        gsap.fromTo(targets, { rotation: 0, opacity: 0 }, { rotation: 90, opacity, ...baseConfig });
+        break;
+      case 'flip-x':
+        gsap.fromTo(targets, { rotationY: -90, opacity: 0 }, { rotationY: 0, opacity, ...baseConfig });
+        break;
+      case 'flip-y':
+        gsap.fromTo(targets, { rotationX: -90, opacity: 0 }, { rotationX: 0, opacity, ...baseConfig });
+        break;
+      case 'blur-in':
+        gsap.fromTo(targets, { filter: "blur(5px)", opacity: 0 }, { filter: "blur(0px)", opacity, ...baseConfig });
+        break;
     }
   }
 
-  const animationObserver = new IntersectionObserver((entries) => {
+  const animationObserver = new IntersectionObserver(entries => {
     entries.forEach(entry => {
       const el = entry.target;
       const once = el.dataset.once === "true";
@@ -177,15 +172,11 @@ document.addEventListener('DOMContentLoaded', () => {
           animateElement(el);
           el.classList.add('animated');
         }
-      } else {
-        if (!once) {
-          el.classList.remove('animated');
-        }
+      } else if (!once) {
+        el.classList.remove('animated');
       }
     });
-  }, {
-    threshold: 0
-  });
+  }, { threshold: 0 });
 
   document.querySelectorAll('[data-animation]').forEach(el => {
     const trigger = el.dataset.trigger || 'view';
